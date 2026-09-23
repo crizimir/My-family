@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { HashRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import {
   Profile,
@@ -58,27 +58,26 @@ import { getMediaAsset, saveMediaAsset } from './utils/photoStorage';
 import { calculateDaysTogetherLive } from './utils/dateCalculations';
 import { LoginScreen } from './components/LoginScreen';
 import { Camera, Settings } from 'lucide-react';
+import {
+  loadSanctuaryState,
+  saveDataKey,
+  saveSiteSettings,
+  DEFAULT_SITE_SETTINGS,
+  DEFAULT_HERO_PHOTO,
+  type DataKey,
+} from './utils/supabaseData';
 
-const STORAGE_KEY = 'cuares_family_data_v4';
-
-const initialSiteSettings: SiteSettings = {
-  familyName: 'Cuares Family',
-  sanctuaryTitle: 'The Cuares Haven',
-  tagline: 'Everyday warmth, gentle laughter, and our growing little world.',
-  description: 'The digital sanctuary of Mirwen, Janine Rae, and our darling daughter. Documenting our quiet coffee mornings, milestone adventures, handwritten letters, and the sweet ordinary days that mean everything.',
-  locationCity: 'Pasig City, Philippines',
-  establishedYear: '2018',
-  togetherSinceDate: '2018-01-01',
-};
+const AUTH_KEY = 'cuares_sanctuary_auth_v1';
 
 function AppContent() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Sanctuary Password Authentication (Password: mirwenjanineforever)
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('cuares_sanctuary_auth_v1') === 'true';
+      return localStorage.getItem(AUTH_KEY) === 'true';
     } catch {
       return false;
     }
@@ -87,7 +86,7 @@ function AppContent() {
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
     try {
-      localStorage.setItem('cuares_sanctuary_auth_v1', 'true');
+      localStorage.setItem(AUTH_KEY, 'true');
     } catch {
       // ignore
     }
@@ -96,173 +95,29 @@ function AppContent() {
   const handleLockSanctuary = () => {
     setIsAuthenticated(false);
     try {
-      localStorage.removeItem('cuares_sanctuary_auth_v1');
+      localStorage.removeItem(AUTH_KEY);
     } catch {
       // ignore
     }
   };
 
-  // Persistent States
-  const [profiles, setProfiles] = useState<Profile[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_profiles`);
-      return saved ? JSON.parse(saved) : initialProfiles;
-    } catch {
-      return initialProfiles;
-    }
-  });
-
-  const [milestones, setMilestones] = useState<TimelineMilestone[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_milestones`);
-      return saved ? JSON.parse(saved) : initialMilestones;
-    } catch {
-      return initialMilestones;
-    }
-  });
-
-  const [stats, setStats] = useState<StatItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_stats`);
-      return saved ? JSON.parse(saved) : initialStats;
-    } catch {
-      return initialStats;
-    }
-  });
-
-  const [photos, setPhotos] = useState<PhotoItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_photos`);
-      return saved ? JSON.parse(saved) : initialPhotos;
-    } catch {
-      return initialPhotos;
-    }
-  });
-
-  const [notes, setNotes] = useState<StickyNote[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_notes`);
-      return saved ? JSON.parse(saved) : initialNotes;
-    } catch {
-      return initialNotes;
-    }
-  });
-
-  const [locations, setLocations] = useState<CherishedLocation[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_locations`);
-      return saved ? JSON.parse(saved) : initialLocations;
-    } catch {
-      return initialLocations;
-    }
-  });
-
-  const [letters, setLetters] = useState<TimeCapsuleLetter[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_letters`);
-      return saved ? JSON.parse(saved) : initialLetters;
-    } catch {
-      return initialLetters;
-    }
-  });
-
-  const [bucketList, setBucketList] = useState<BucketListItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_bucket`);
-      return saved ? JSON.parse(saved) : initialBucketList;
-    } catch {
-      return initialBucketList;
-    }
-  });
-
-  const [quotes, setQuotes] = useState<QuoteItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_quotes`);
-      return saved ? JSON.parse(saved) : initialQuotes;
-    } catch {
-      return initialQuotes;
-    }
-  });
-
-  const [socialPosts, setSocialPosts] = useState<SocialPost[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_posts`);
-      return saved ? JSON.parse(saved) : initialSocialPosts;
-    } catch {
-      return initialSocialPosts;
-    }
-  });
-
-  const [routines, setRoutines] = useState<RoutineTask[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_routines`);
-      return saved ? JSON.parse(saved) : initialRoutines;
-    } catch {
-      return initialRoutines;
-    }
-  });
-
-  const [goals, setGoals] = useState<FamilyGoal[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_goals`);
-      return saved ? JSON.parse(saved) : initialGoals;
-    } catch {
-      return initialGoals;
-    }
-  });
-
-  const [siteSettings, setSiteSettings] = useState<SiteSettings>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_siteSettings`);
-      return saved ? JSON.parse(saved) : initialSiteSettings;
-    } catch {
-      return initialSiteSettings;
-    }
-  });
-
-  const [treeNodes, setTreeNodes] = useState<FamilyTreeNode[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_tree`);
-      return saved ? JSON.parse(saved) : initialTreeNodes;
-    } catch {
-      return initialTreeNodes;
-    }
-  });
-
-  // Dedicated Audio Tracks State (Hailee Steinfeld, Ed Sheeran, Ariana Grande)
-  const [tracks, setTracks] = useState<AudioTrack[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_tracks`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.some((t: AudioTrack) => t.id === 'track-1' || t.id === 'track-4')) {
-          return initialTracks;
-        }
-        return parsed;
-      }
-      return initialTracks;
-    } catch {
-      return initialTracks;
-    }
-  });
-
-  // Dedicated Financial Planner State (Debts, Income This Week, Expenses, Savings)
-  const [financialState, setFinancialState] = useState<FamilyFinancialState>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_finances`);
-      return saved ? JSON.parse(saved) : initialFinancialState;
-    } catch {
-      return initialFinancialState;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_finances`, JSON.stringify(financialState));
-    } catch {
-      // ignore
-    }
-  }, [financialState]);
+  // Persistent States — initialized with defaults, replaced by Supabase data on load
+  const [profiles, setProfiles] = useState<Profile[]>(initialProfiles);
+  const [milestones, setMilestones] = useState<TimelineMilestone[]>(initialMilestones);
+  const [stats, setStats] = useState<StatItem[]>(initialStats);
+  const [photos, setPhotos] = useState<PhotoItem[]>(initialPhotos);
+  const [notes, setNotes] = useState<StickyNote[]>(initialNotes);
+  const [locations, setLocations] = useState<CherishedLocation[]>(initialLocations);
+  const [letters, setLetters] = useState<TimeCapsuleLetter[]>(initialLetters);
+  const [bucketList, setBucketList] = useState<BucketListItem[]>(initialBucketList);
+  const [quotes, setQuotes] = useState<QuoteItem[]>(initialQuotes);
+  const [socialPosts, setSocialPosts] = useState<SocialPost[]>(initialSocialPosts);
+  const [routines, setRoutines] = useState<RoutineTask[]>(initialRoutines);
+  const [goals, setGoals] = useState<FamilyGoal[]>(initialGoals);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const [treeNodes, setTreeNodes] = useState<FamilyTreeNode[]>(initialTreeNodes);
+  const [tracks, setTracks] = useState<AudioTrack[]>(initialTracks);
+  const [financialState, setFinancialState] = useState<FamilyFinancialState>(initialFinancialState);
 
   // Master Customizer Modal State
   const [isCustomizerOpen, setIsCustomizerOpen] = useState(false);
@@ -276,10 +131,11 @@ function AppContent() {
 
   // Sync days into stats state automatically
   useEffect(() => {
+    if (!isDataLoaded) return;
     setStats((prev) =>
       prev.map((s) => (s.id === 'days' ? { ...s, value: liveDaysResult.days } : s))
     );
-  }, [liveDaysResult.days]);
+  }, [liveDaysResult.days, isDataLoaded]);
 
   // Handler to adjust calendar start date and automatically recalculate live days
   const handleUpdateTogetherSinceDate = (newDate: string) => {
@@ -302,12 +158,44 @@ function AppContent() {
 
   // Real Photo Upload Modal State & Hero Photo State
   const [isPhotoSyncOpen, setIsPhotoSyncOpen] = useState(false);
-  const [heroPhoto, setHeroPhoto] = useState<string>(() => {
-    return localStorage.getItem(`${STORAGE_KEY}_heroPhoto`) || 'https://images.unsplash.com/photo-1511895426328-dc8714191300?auto=format&fit=crop&w=1200&q=80';
-  });
+  const [heroPhoto, setHeroPhoto] = useState<string>(DEFAULT_HERO_PHOTO);
 
-  // Load any IndexedDB custom images on mount
+  // Load all data from Supabase on mount
   useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const state = await loadSanctuaryState();
+        if (cancelled) return;
+        setProfiles(state.profiles);
+        setMilestones(state.milestones);
+        setStats(state.stats);
+        setPhotos(state.photos);
+        setNotes(state.notes);
+        setLocations(state.locations);
+        setLetters(state.letters);
+        setBucketList(state.bucketList);
+        setQuotes(state.quotes);
+        setTreeNodes(state.treeNodes);
+        setSocialPosts(state.socialPosts);
+        setRoutines(state.routines);
+        setGoals(state.goals);
+        setTracks(state.tracks);
+        setFinancialState(state.financialState);
+        setSiteSettings(state.siteSettings);
+        setHeroPhoto(state.heroPhoto);
+        setIsDataLoaded(true);
+      } catch (err) {
+        console.error('Failed to load from Supabase, using defaults:', err);
+        setIsDataLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Load any IndexedDB custom images on mount (overlays on top of DB data)
+  useEffect(() => {
+    if (!isDataLoaded) return;
     getMediaAsset('hero_cover').then((hero) => {
       if (hero) setHeroPhoto(hero);
     });
@@ -320,7 +208,132 @@ function AppContent() {
     getMediaAsset('avatar_daughter').then((av) => {
       if (av) setProfiles((prev) => prev.map((p) => p.id === 'daughter' ? { ...p, avatar: av } : p));
     });
+  }, [isDataLoaded]);
+
+  // Debounced save system — batches changes and writes to Supabase after a short delay
+  const pendingSaves = useRef<Set<DataKey>>(new Set());
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleSave = useCallback((key: DataKey) => {
+    pendingSaves.current.add(key);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const keys = Array.from(pendingSaves.current);
+      pendingSaves.current.clear();
+      for (const k of keys) {
+        const value = stateRef.current[k];
+        saveDataKey(k, value).catch((err) => console.error(`Failed to save ${k}:`, err));
+      }
+    }, 800);
   }, []);
+
+  // Keep a ref of current state for the save system
+  const stateRef = useRef<Record<string, unknown>>({});
+  stateRef.current = {
+    profiles,
+    milestones,
+    stats,
+    photos,
+    notes,
+    locations,
+    letters,
+    bucketList,
+    quotes,
+    treeNodes,
+    socialPosts,
+    routines,
+    goals,
+    tracks,
+    financialState,
+  };
+
+  // Trigger saves when state changes (only after initial load)
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('profiles');
+  }, [profiles, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('milestones');
+  }, [milestones, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('stats');
+  }, [stats, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('photos');
+  }, [photos, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('notes');
+  }, [notes, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('locations');
+  }, [locations, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('letters');
+  }, [letters, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('bucketList');
+  }, [bucketList, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('quotes');
+  }, [quotes, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('treeNodes');
+  }, [treeNodes, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('socialPosts');
+  }, [socialPosts, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('routines');
+  }, [routines, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('goals');
+  }, [goals, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('tracks');
+  }, [tracks, isDataLoaded, scheduleSave]);
+
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    scheduleSave('financialState');
+  }, [financialState, isDataLoaded, scheduleSave]);
+
+  // Save site settings + hero photo (debounced separately since it's a different table)
+  const settingsSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!isDataLoaded) return;
+    if (settingsSaveTimer.current) clearTimeout(settingsSaveTimer.current);
+    settingsSaveTimer.current = setTimeout(() => {
+      saveSiteSettings(siteSettings, heroPhoto).catch((err) =>
+        console.error('Failed to save site settings:', err)
+      );
+    }, 800);
+  }, [siteSettings, heroPhoto, isDataLoaded]);
 
   const handleUpdateAvatar = (profileId: string, dataUrl: string) => {
     setProfiles((prev) =>
@@ -331,56 +344,12 @@ function AppContent() {
 
   const handleUpdateHeroPhoto = (dataUrl: string) => {
     setHeroPhoto(dataUrl);
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_heroPhoto`, dataUrl);
-    } catch {
-      // ignore
-    }
     saveMediaAsset('hero_cover', dataUrl);
   };
 
   const handleAddBatchPhotos = (newBatch: PhotoItem[]) => {
     setPhotos((prev) => [...newBatch, ...prev]);
   };
-
-  // Sync to local storage
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_profiles`, JSON.stringify(profiles));
-      localStorage.setItem(`${STORAGE_KEY}_milestones`, JSON.stringify(milestones));
-      localStorage.setItem(`${STORAGE_KEY}_stats`, JSON.stringify(stats));
-      localStorage.setItem(`${STORAGE_KEY}_photos`, JSON.stringify(photos));
-      localStorage.setItem(`${STORAGE_KEY}_notes`, JSON.stringify(notes));
-      localStorage.setItem(`${STORAGE_KEY}_locations`, JSON.stringify(locations));
-      localStorage.setItem(`${STORAGE_KEY}_letters`, JSON.stringify(letters));
-      localStorage.setItem(`${STORAGE_KEY}_bucket`, JSON.stringify(bucketList));
-      localStorage.setItem(`${STORAGE_KEY}_quotes`, JSON.stringify(quotes));
-      localStorage.setItem(`${STORAGE_KEY}_posts`, JSON.stringify(socialPosts));
-      localStorage.setItem(`${STORAGE_KEY}_routines`, JSON.stringify(routines));
-      localStorage.setItem(`${STORAGE_KEY}_goals`, JSON.stringify(goals));
-      localStorage.setItem(`${STORAGE_KEY}_siteSettings`, JSON.stringify(siteSettings));
-      localStorage.setItem(`${STORAGE_KEY}_tree`, JSON.stringify(treeNodes));
-      localStorage.setItem(`${STORAGE_KEY}_tracks`, JSON.stringify(tracks));
-    } catch {
-      // safe fallback
-    }
-  }, [
-    profiles,
-    milestones,
-    stats,
-    photos,
-    notes,
-    locations,
-    letters,
-    bucketList,
-    quotes,
-    socialPosts,
-    routines,
-    goals,
-    siteSettings,
-    treeNodes,
-    tracks,
-  ]);
 
   // Handlers
   const handleUpdateTrack = (trackId: string, updates: Partial<AudioTrack>) => {
@@ -587,10 +556,9 @@ function AppContent() {
     setGoals((prev) => [...prev, item]);
   };
 
-  const handleResetData = () => {
-    if (window.confirm('Reset all family memory entries to default?')) {
-      localStorage.clear();
-      setSiteSettings(initialSiteSettings);
+  const handleResetData = async () => {
+    if (window.confirm('Reset all family memory entries to default? This will permanently overwrite the database.')) {
+      setSiteSettings(DEFAULT_SITE_SETTINGS);
       setTreeNodes(initialTreeNodes);
       setProfiles(initialProfiles);
       setMilestones(initialMilestones);
@@ -606,6 +574,7 @@ function AppContent() {
       setGoals(initialGoals);
       setTracks(initialTracks);
       setFinancialState(initialFinancialState);
+      setHeroPhoto(DEFAULT_HERO_PHOTO);
     }
   };
 
@@ -627,7 +596,7 @@ function AppContent() {
         nickname: 'Mirwen',
         avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
         colorScheme: 'amber',
-        bio: 'Write Mirwen’s real story and thoughts here...',
+        bio: 'Write Mirwen\u2019s real story and thoughts here...',
         birthday: 'Add Birthday',
         favoriteThings: {
           coffeeOrDrink: 'Favorite Drink',
@@ -646,7 +615,7 @@ function AppContent() {
         nickname: 'Janine',
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
         colorScheme: 'rose',
-        bio: 'Write Janine’s real story and thoughts here...',
+        bio: 'Write Janine\u2019s real story and thoughts here...',
         birthday: 'Add Birthday',
         favoriteThings: {
           coffeeOrDrink: 'Favorite Drink',
@@ -665,7 +634,7 @@ function AppContent() {
         nickname: 'Sweetheart',
         avatar: 'https://images.unsplash.com/photo-1595454223600-91fbdd921f64?auto=format&fit=crop&w=400&q=80',
         colorScheme: 'lavender',
-        bio: 'Write our daughter’s real story and milestones here...',
+        bio: 'Write our daughter\u2019s real story and milestones here...',
         birthday: 'Add Birthday',
         favoriteThings: {
           coffeeOrDrink: 'Warm Milk / Juice',
