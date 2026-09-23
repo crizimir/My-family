@@ -1,0 +1,6 @@
+{
+  "name": "The Cuares Family Space",
+  "description": "A minimalist, cute personal family sanctuary for Mirwen, Janine Rae, and their daughter with interactive timeline, photo album, memories, routines, and goals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
