@@ -41,6 +41,7 @@ export const PersistentAudioPlayer: React.FC<PersistentAudioPlayerProps> = ({
   const [isMinimized, setIsMinimized] = useState(false);
   const [showPlaylist, setShowPlaylist] = useState(false);
   const [trackProgress, setTrackProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +67,7 @@ export const PersistentAudioPlayer: React.FC<PersistentAudioPlayerProps> = ({
     if (track.audioUrl) {
       cozyAudio.stop();
       if (audioRef.current) {
+        setAudioDuration(0);
         audioRef.current.src = track.audioUrl;
         audioRef.current.currentTime = 0;
         audioRef.current.play().catch(() => {
@@ -130,6 +132,19 @@ export const PersistentAudioPlayer: React.FC<PersistentAudioPlayerProps> = ({
   const handlePrev = () => {
     const prevIdx = (currentTrackIndex - 1 + tracks.length) % tracks.length;
     handleSelectTrack(prevIdx);
+  };
+
+  // Total duration: prefer the real duration of an attached audio file, fall back to track metadata
+  const effectiveDuration = audioDuration || currentTrack.duration;
+  const seekPercent =
+    effectiveDuration > 0 ? Math.min(100, (trackProgress / effectiveDuration) * 100) : 0;
+
+  const handleSeek = (value: number) => {
+    const clamped = Math.max(0, Math.min(effectiveDuration, value));
+    setTrackProgress(clamped);
+    if (currentTrack.audioUrl && audioRef.current) {
+      audioRef.current.currentTime = clamped;
+    }
   };
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -252,6 +267,10 @@ export const PersistentAudioPlayer: React.FC<PersistentAudioPlayerProps> = ({
       <audio
         ref={audioRef}
         onEnded={handleNext}
+        onLoadedMetadata={() => {
+          const d = audioRef.current?.duration;
+          if (d && isFinite(d)) setAudioDuration(d);
+        }}
         onError={() => {
           // Fallback to synth if custom url fails
           if (isPlaying) cozyAudio.play(currentTrack.audioKey);
@@ -368,19 +387,34 @@ export const PersistentAudioPlayer: React.FC<PersistentAudioPlayerProps> = ({
             </div>
           )}
 
-          {/* Scrub Progress Bar */}
+          {/* Seek Bar */}
           <div className="my-2">
-            <div className="w-full h-1.5 bg-[#1b2030] rounded-full overflow-hidden">
+            <div className="relative h-3 flex items-center group">
+              <div className="absolute inset-x-0 h-1.5 bg-[#1b2030] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-[#f472b6] via-[#c084fc] to-[#38bdf8] rounded-full"
+                  style={{ width: `${seekPercent}%` }}
+                />
+              </div>
               <div
-                className="h-full bg-gradient-to-r from-[#f472b6] via-[#c084fc] to-[#38bdf8] rounded-full transition-all duration-300"
-                style={{
-                  width: `${Math.min(100, (trackProgress / currentTrack.duration) * 100)}%`,
-                }}
+                className="absolute w-3 h-3 rounded-full bg-white border border-[#f472b6] shadow-md shadow-black/40 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity"
+                style={{ left: `calc(${seekPercent}% - 6px)` }}
+              />
+              <input
+                type="range"
+                min={0}
+                max={effectiveDuration || 1}
+                step={0.5}
+                value={trackProgress}
+                onChange={(e) => handleSeek(parseFloat(e.target.value))}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                title="Seek"
+                aria-label="Seek"
               />
             </div>
             <div className="flex justify-between text-[10px] text-[#64748b] font-mono mt-1">
               <span>{formatSeconds(trackProgress)}</span>
-              <span>{formatSeconds(currentTrack.duration)}</span>
+              <span>{formatSeconds(effectiveDuration)}</span>
             </div>
           </div>
 
