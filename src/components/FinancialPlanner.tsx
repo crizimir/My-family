@@ -362,6 +362,13 @@ export const FinancialPlanner: React.FC<FinancialPlannerProps> = ({
     setDepositAmountInput('');
   };
 
+  const handleDeleteSavings = (id: string) => {
+    onUpdateFinancialState((prev) => ({
+      ...prev,
+      savings: prev.savings.filter((s) => s.id !== id),
+    }));
+  };
+
   return (
     <div className="space-y-8">
       {/* Header Banner */}
@@ -1003,9 +1010,18 @@ export const FinancialPlanner: React.FC<FinancialPlannerProps> = ({
                       <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[#8b5cf6]/15 text-[#c084fc] border border-[#8b5cf6]/30">
                         {fund.category}
                       </span>
-                      {fund.targetDate && (
-                        <span className="text-[10px] text-[#94a3b8]">Target: {fund.targetDate}</span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {fund.targetDate && (
+                          <span className="text-[10px] text-[#94a3b8]">Target: {fund.targetDate}</span>
+                        )}
+                        <button
+                          onClick={() => handleDeleteSavings(fund.id)}
+                          className="text-[#64748b] hover:text-[#f43f5e] p-1 transition-colors"
+                          title="Delete savings goal"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <h3 className="text-sm font-semibold text-white">{fund.name}</h3>
 
