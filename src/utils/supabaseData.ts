@@ -162,14 +162,14 @@ export async function loadSanctuaryState(): Promise<SanctuaryState> {
  * Seeds the database with initial data on first run.
  */
 async function seedDatabase(state: SanctuaryState): Promise<void> {
-  // Insert settings
+  // Insert settings (upsert so it's idempotent if the row already exists)
   await supabase
     .from('sanctuary_settings')
-    .insert({
+    .upsert({
       id: 1,
       data: state.siteSettings,
       hero_photo: state.heroPhoto,
-    });
+    }, { onConflict: 'id' });
 
   // Insert all data keys that don't already exist
   const inserts = DATA_KEYS.map((key) => ({
